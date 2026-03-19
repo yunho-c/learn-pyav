@@ -19,8 +19,16 @@ def artifacts_dir() -> Path:
     return project_root() / "artifacts"
 
 
+def fixture_cache_dir() -> Path:
+    return artifacts_dir() / "fixtures"
+
+
 def results_dir() -> Path:
     return project_root() / "results"
+
+
+def benchmark_report_dir() -> Path:
+    return results_dir() / "benchmarks"
 
 
 def logs_dir() -> Path:

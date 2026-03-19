@@ -1,19 +1,34 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from statistics import median
 from typing import Any
 
 
 @dataclass(frozen=True)
+class FixtureAsset:
+    key: str
+    source_url: str
+    relative_path: str
+    description: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class VideoFixtureSpec:
-    name: str
-    source: str
+    key: str
+    path: str
+    source_url: str
+    description: str
     container: str
     codec: str
     width: int
     height: int
     fps: float
     duration_seconds: float
+    frames: int
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -51,3 +66,31 @@ class BenchmarkMeasurement:
         data = asdict(self)
         data["frames_per_second"] = self.frames_per_second
         return data
+
+
+@dataclass(frozen=True)
+class BenchmarkSummary:
+    benchmark: str
+    fixture: VideoFixtureSpec
+    case: BenchmarkCase
+    measurements: list[BenchmarkMeasurement]
+    warmups: int
+
+    @property
+    def median_wall_seconds(self) -> float:
+        return median(measurement.wall_seconds for measurement in self.measurements)
+
+    @property
+    def median_frames_per_second(self) -> float:
+        return median(measurement.frames_per_second for measurement in self.measurements)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "benchmark": self.benchmark,
+            "fixture": self.fixture.to_dict(),
+            "case": self.case.to_dict(),
+            "warmups": self.warmups,
+            "measurements": [measurement.to_dict() for measurement in self.measurements],
+            "median_wall_seconds": self.median_wall_seconds,
+            "median_frames_per_second": self.median_frames_per_second,
+        }

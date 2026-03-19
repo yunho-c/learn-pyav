@@ -6,6 +6,9 @@ import subprocess
 from dataclasses import asdict, dataclass
 from typing import Any
 
+import av
+from av.codec.hwaccel import hwdevices_available
+
 from .paths import project_root, pyav_checkout_dir
 
 
@@ -27,6 +30,8 @@ class EnvironmentReport:
     pyav_checkout: str
     pyav_checkout_exists: bool
     av_distribution_version: str | None
+    pyav_library_versions: dict[str, str]
+    pyav_hwdevices: list[str]
     ffmpeg: CommandProbe
     ffmpeg_hwaccels: CommandProbe
     pkg_config_avcodec: CommandProbe
@@ -37,6 +42,8 @@ class EnvironmentReport:
             "pyav_checkout": self.pyav_checkout,
             "pyav_checkout_exists": self.pyav_checkout_exists,
             "av_distribution_version": self.av_distribution_version,
+            "pyav_library_versions": self.pyav_library_versions,
+            "pyav_hwdevices": self.pyav_hwdevices,
             "ffmpeg": self.ffmpeg.to_dict(),
             "ffmpeg_hwaccels": self.ffmpeg_hwaccels.to_dict(),
             "pkg_config_avcodec": self.pkg_config_avcodec.to_dict(),
@@ -82,6 +89,11 @@ def collect_environment_report() -> EnvironmentReport:
         pyav_checkout=str(pyav_checkout_dir()),
         pyav_checkout_exists=pyav_checkout_dir().exists(),
         av_distribution_version=probe_av_distribution_version(),
+        pyav_library_versions={
+            name: ".".join(str(part) for part in value)
+            for name, value in sorted(av.library_versions.items())
+        },
+        pyav_hwdevices=sorted(hwdevices_available()),
         ffmpeg=_run_probe("ffmpeg", "-version"),
         ffmpeg_hwaccels=_run_probe("ffmpeg", "-hide_banner", "-hwaccels"),
         pkg_config_avcodec=_run_probe("pkg-config", "--modversion", "libavcodec"),

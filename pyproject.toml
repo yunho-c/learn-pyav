@@ -41,6 +41,7 @@ test = "pytest -q"
 [tool.pyright]
 include = ["src", "tests"]
 exclude = ["external", ".pixi"]
+extraPaths = ["external/pyav"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
 
