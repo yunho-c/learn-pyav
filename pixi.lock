@@ -1102,7 +1102,7 @@ packages:
 - pypi: ./
   name: pyav-hwaccel-autoresearch
   version: 0.1.0
-  sha256: 23933f3c852094cc721b65dd67470b76bd41616888383ccd3d4d3707b769e4b4
+  sha256: 01ca6352a040b15d765e48364397c0af70972fb77b67f5d18d6033398e11d62a
   requires_dist:
   - pytest>=8.3,<9
   - pyright>=1.1.390,<2
