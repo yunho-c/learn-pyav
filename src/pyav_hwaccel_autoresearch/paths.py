@@ -23,12 +23,24 @@ def fixture_cache_dir() -> Path:
     return artifacts_dir() / "fixtures"
 
 
+def prepared_fixture_dir() -> Path:
+    return artifacts_dir() / "prepared"
+
+
 def results_dir() -> Path:
     return project_root() / "results"
 
 
 def benchmark_report_dir() -> Path:
     return results_dir() / "benchmarks"
+
+
+def run_results_dir() -> Path:
+    return results_dir() / "runs"
+
+
+def results_index_path() -> Path:
+    return results_dir() / "index.jsonl"
 
 
 def logs_dir() -> Path:

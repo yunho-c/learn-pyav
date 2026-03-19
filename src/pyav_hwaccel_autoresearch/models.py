@@ -17,8 +17,19 @@ class FixtureAsset:
 
 
 @dataclass(frozen=True)
+class ResolutionSpec:
+    key: str
+    target_height: int | None
+    description: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class VideoFixtureSpec:
     key: str
+    variant_key: str
     path: str
     source_url: str
     description: str
@@ -38,6 +49,7 @@ class VideoFixtureSpec:
 class BenchmarkCase:
     name: str
     mode: str
+    resolution_key: str
     container: str
     codec: str
     hardware_accel: str | None = None

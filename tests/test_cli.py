@@ -23,3 +23,13 @@ def test_fixtures_list_command_outputs_catalog() -> None:
     payload = json.loads(result.stdout)
     fixture_keys = {fixture["key"] for fixture in payload["fixtures"]}
     assert "pexels-night-sky" in fixture_keys
+
+
+def test_fixtures_resolutions_command_outputs_presets() -> None:
+    result = runner.invoke(app, ["fixtures", "resolutions"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    resolution_keys = {resolution["key"] for resolution in payload["resolutions"]}
+    assert "source" in resolution_keys
+    assert "720p" in resolution_keys

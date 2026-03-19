@@ -13,9 +13,10 @@ import av
 from av.codec.hwaccel import HWAccel
 from av.video.stream import VideoStream
 
-from .fixtures import ensure_fixture, inspect_fixture
+from .fixtures import ensure_prepared_fixture, inspect_fixture_variant
 from .models import BenchmarkCase, BenchmarkMeasurement, BenchmarkSummary
 from .paths import benchmark_report_dir
+from .recording import RunRecorder
 
 
 def _cpu_seconds() -> float:
@@ -145,24 +146,41 @@ def _encode_once(fixture_path: Path, codec_name: str, bit_rate: int) -> Benchmar
 def benchmark_decode(
     fixture_key: str,
     *,
+    resolution_key: str,
     hwaccel_device: str | None,
     repeats: int,
     warmups: int,
+    recorder: RunRecorder | None = None,
 ) -> BenchmarkSummary:
-    fixture_path = ensure_fixture(fixture_key)
-    fixture = inspect_fixture(fixture_key)
+    fixture_path = ensure_prepared_fixture(fixture_key, resolution_key)
+    fixture = inspect_fixture_variant(fixture_key, resolution_key)
     case = BenchmarkCase(
-        name=f"{fixture_key}-decode-{hwaccel_device or 'software'}",
+        name=f"{fixture_key}-{resolution_key}-decode-{hwaccel_device or 'software'}",
         mode="decode",
+        resolution_key=resolution_key,
         container=fixture.container,
         codec=fixture.codec,
         hardware_accel=hwaccel_device,
     )
 
+    if recorder is not None:
+        recorder.emit(
+            "benchmark_started",
+            {
+                "benchmark": "decode",
+                "fixture_key": fixture_key,
+                "resolution_key": resolution_key,
+                "hardware_accel": hwaccel_device,
+            },
+        )
+
     for _ in range(warmups):
         _decode_once(fixture_path, hwaccel_device)
 
     measurements = [_decode_once(fixture_path, hwaccel_device) for _ in range(repeats)]
+    if recorder is not None:
+        for measurement in measurements:
+            recorder.emit("measurement_completed", measurement.to_dict())
     return BenchmarkSummary(
         benchmark="decode",
         fixture=fixture,
@@ -175,26 +193,44 @@ def benchmark_decode(
 def benchmark_encode(
     fixture_key: str,
     *,
+    resolution_key: str,
     codec_name: str,
     repeats: int,
     warmups: int,
     bit_rate: int,
+    recorder: RunRecorder | None = None,
 ) -> BenchmarkSummary:
-    fixture_path = ensure_fixture(fixture_key)
-    fixture = inspect_fixture(fixture_key)
+    fixture_path = ensure_prepared_fixture(fixture_key, resolution_key)
+    fixture = inspect_fixture_variant(fixture_key, resolution_key)
     case = BenchmarkCase(
-        name=f"{fixture_key}-encode-{codec_name}",
+        name=f"{fixture_key}-{resolution_key}-encode-{codec_name}",
         mode="encode",
+        resolution_key=resolution_key,
         container="mp4",
         codec=codec_name,
         hardware_accel="videotoolbox" if "videotoolbox" in codec_name else None,
         options={"bit_rate": str(bit_rate)},
     )
 
+    if recorder is not None:
+        recorder.emit(
+            "benchmark_started",
+            {
+                "benchmark": "encode",
+                "fixture_key": fixture_key,
+                "resolution_key": resolution_key,
+                "codec": codec_name,
+                "bit_rate": bit_rate,
+            },
+        )
+
     for _ in range(warmups):
         _encode_once(fixture_path, codec_name, bit_rate)
 
     measurements = [_encode_once(fixture_path, codec_name, bit_rate) for _ in range(repeats)]
+    if recorder is not None:
+        for measurement in measurements:
+            recorder.emit("measurement_completed", measurement.to_dict())
     return BenchmarkSummary(
         benchmark="encode",
         fixture=fixture,
@@ -206,7 +242,10 @@ def benchmark_encode(
 
 def default_report_path(summary: BenchmarkSummary) -> Path:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    slug = f"{summary.benchmark}-{summary.fixture.key}-{summary.case.codec}".replace("/", "-")
+    slug = (
+        f"{summary.benchmark}-{summary.fixture.key}-{summary.fixture.variant_key}-"
+        f"{summary.case.codec}-{summary.case.hardware_accel or 'software'}"
+    ).replace("/", "-")
     return benchmark_report_dir() / f"{timestamp}-{slug}.json"
 
 

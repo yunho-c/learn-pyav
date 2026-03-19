@@ -5,6 +5,7 @@ from .models import (
     BenchmarkMeasurement,
     BenchmarkSummary,
     FixtureAsset,
+    ResolutionSpec,
     VideoFixtureSpec,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "BenchmarkMeasurement",
     "BenchmarkSummary",
     "FixtureAsset",
+    "ResolutionSpec",
     "VideoFixtureSpec",
 ]

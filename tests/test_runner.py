@@ -12,6 +12,7 @@ def test_default_report_path_uses_benchmark_directory() -> None:
         benchmark="decode",
         fixture=VideoFixtureSpec(
             key="fixture",
+            variant_key="source",
             path="/tmp/input.mp4",
             source_url="https://example.com/input.mp4",
             description="fixture",
@@ -26,6 +27,7 @@ def test_default_report_path_uses_benchmark_directory() -> None:
         case=BenchmarkCase(
             name="fixture-decode-software",
             mode="decode",
+            resolution_key="source",
             container="mp4",
             codec="h264",
         ),

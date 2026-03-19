@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
 import av
 
-from .models import FixtureAsset, VideoFixtureSpec
-from .paths import fixture_cache_dir
+from .models import FixtureAsset, ResolutionSpec, VideoFixtureSpec
+from .paths import fixture_cache_dir, prepared_fixture_dir
 
 PYAV_CURATED_BASE_URL = "https://pyav.org/datasets/"
 
@@ -29,9 +30,36 @@ FIXTURE_ASSETS: dict[str, FixtureAsset] = {
     ),
 }
 
+RESOLUTION_SPECS: dict[str, ResolutionSpec] = {
+    "source": ResolutionSpec(
+        key="source",
+        target_height=None,
+        description="Original source resolution.",
+    ),
+    "480p": ResolutionSpec(
+        key="480p",
+        target_height=480,
+        description="Prepared 480p variant preserving aspect ratio.",
+    ),
+    "720p": ResolutionSpec(
+        key="720p",
+        target_height=720,
+        description="Prepared 720p variant preserving aspect ratio.",
+    ),
+    "1080p": ResolutionSpec(
+        key="1080p",
+        target_height=1080,
+        description="Prepared 1080p variant preserving aspect ratio.",
+    ),
+}
+
 
 def list_fixture_assets() -> list[FixtureAsset]:
     return list(FIXTURE_ASSETS.values())
+
+
+def list_resolution_specs() -> list[ResolutionSpec]:
+    return list(RESOLUTION_SPECS.values())
 
 
 def get_fixture_asset(key: str) -> FixtureAsset:
@@ -41,8 +69,20 @@ def get_fixture_asset(key: str) -> FixtureAsset:
         raise KeyError(f"Unknown fixture key: {key}") from exc
 
 
+def get_resolution_spec(key: str) -> ResolutionSpec:
+    try:
+        return RESOLUTION_SPECS[key]
+    except KeyError as exc:
+        raise KeyError(f"Unknown resolution key: {key}") from exc
+
+
 def fixture_local_path(asset: FixtureAsset) -> Path:
     return fixture_cache_dir() / asset.relative_path
+
+
+def prepared_fixture_path(asset: FixtureAsset, resolution_key: str) -> Path:
+    source_name = Path(asset.relative_path).stem
+    return prepared_fixture_dir() / asset.key / resolution_key / f"{source_name}.mp4"
 
 
 def _download_to_path(source_url: str, destination: Path) -> None:
@@ -81,9 +121,16 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inspect_fixture(key: str) -> VideoFixtureSpec:
-    asset = get_fixture_asset(key)
-    path = ensure_fixture(key)
+def _derive_scaled_dimensions(width: int, height: int, target_height: int) -> tuple[int, int]:
+    if target_height >= height:
+        return width, height
+
+    scale = target_height / height
+    scaled_width = max(2, int(2 * round((width * scale) / 2)))
+    return scaled_width, target_height
+
+
+def _inspect_video_path(asset: FixtureAsset, path: Path, variant_key: str) -> VideoFixtureSpec:
     with av.open(str(path)) as container:
         stream = container.streams.video[0]
         fps = float(stream.average_rate) if stream.average_rate is not None else 0.0
@@ -94,6 +141,7 @@ def inspect_fixture(key: str) -> VideoFixtureSpec:
 
         return VideoFixtureSpec(
             key=asset.key,
+            variant_key=variant_key,
             path=str(path),
             source_url=asset.source_url,
             description=asset.description,
@@ -105,3 +153,62 @@ def inspect_fixture(key: str) -> VideoFixtureSpec:
             duration_seconds=duration_seconds,
             frames=stream.frames,
         )
+
+
+def inspect_fixture(key: str) -> VideoFixtureSpec:
+    asset = get_fixture_asset(key)
+    path = ensure_fixture(key)
+    return _inspect_video_path(asset, path, variant_key="source")
+
+
+def ensure_prepared_fixture(
+    key: str,
+    resolution_key: str,
+    force: bool = False,
+) -> Path:
+    asset = get_fixture_asset(key)
+    resolution = get_resolution_spec(resolution_key)
+    source_path = ensure_fixture(key)
+    if resolution.key == "source":
+        return source_path
+
+    target_path = prepared_fixture_path(asset, resolution.key)
+    if target_path.exists() and not force:
+        return target_path
+
+    source_spec = inspect_fixture(key)
+    target_height = resolution.target_height
+    if target_height is None:
+        return source_path
+
+    target_width, target_height = _derive_scaled_dimensions(
+        source_spec.width,
+        source_spec.height,
+        target_height,
+    )
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(source_path),
+        "-vf",
+        f"scale={target_width}:{target_height}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "18",
+        "-an",
+        str(target_path),
+    ]
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    return target_path
+
+
+def inspect_fixture_variant(key: str, resolution_key: str) -> VideoFixtureSpec:
+    asset = get_fixture_asset(key)
+    path = ensure_prepared_fixture(key, resolution_key)
+    return _inspect_video_path(asset, path, variant_key=resolution_key)
