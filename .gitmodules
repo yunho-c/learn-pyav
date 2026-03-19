@@ -1,0 +1,6 @@
+[submodule "external/autoresearch"]
+	path = external/autoresearch
+	url = https://github.com/yunho-c/autoresearch
+[submodule "external/pyav"]
+	path = external/pyav
+	url = https://github.com/yunho-c/PyAV
