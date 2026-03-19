@@ -8,6 +8,7 @@ dependencies = [
     "pytest>=8.3,<9",
     "pyright>=1.1.390,<2",
     "ruff>=0.8,<1",
+    "typer>=0.15,<1",
 ]
 
 [build-system]
