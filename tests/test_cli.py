@@ -23,6 +23,7 @@ def test_fixtures_list_command_outputs_catalog() -> None:
     payload = json.loads(result.stdout)
     fixture_keys = {fixture["key"] for fixture in payload["fixtures"]}
     assert "pexels-night-sky" in fixture_keys
+    assert "filesamples-4k-h264" in fixture_keys
 
 
 def test_fixtures_resolutions_command_outputs_presets() -> None:
@@ -33,3 +34,4 @@ def test_fixtures_resolutions_command_outputs_presets() -> None:
     resolution_keys = {resolution["key"] for resolution in payload["resolutions"]}
     assert "source" in resolution_keys
     assert "720p" in resolution_keys
+    assert "2160p" in resolution_keys

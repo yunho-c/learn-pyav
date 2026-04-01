@@ -29,6 +29,10 @@ pixi run python -m pyav_hwaccel_autoresearch.cli benchmark encode pexels-night-s
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark encode pexels-night-sky --codec h264_videotoolbox
 ```
 
+The fixture catalog now includes both small PyAV-curated 720p clips and larger native 4K sample
+sources. The 4K assets are intentionally heavyweight and are meant for real throughput comparisons,
+not fast default tests.
+
 ## Current scope
 
 This initial scaffold is focused on environment repeatability and research-process structure.

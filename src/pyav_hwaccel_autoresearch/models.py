@@ -11,6 +11,10 @@ class FixtureAsset:
     source_url: str
     relative_path: str
     description: str
+    width_hint: int | None = None
+    height_hint: int | None = None
+    codec_hint: str | None = None
+    size_mb_hint: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
