@@ -14,7 +14,7 @@ from av.codec.hwaccel import HWAccel
 from av.video.stream import VideoStream
 
 from .fixtures import ensure_prepared_fixture, inspect_fixture_variant
-from .models import BenchmarkCase, BenchmarkMeasurement, BenchmarkSummary
+from .models import BenchmarkCase, BenchmarkComparison, BenchmarkMeasurement, BenchmarkSummary
 from .paths import benchmark_report_dir
 from .recording import RunRecorder
 
@@ -237,6 +237,99 @@ def benchmark_encode(
         case=case,
         measurements=measurements,
         warmups=warmups,
+    )
+
+
+def compare_decode(
+    fixture_key: str,
+    *,
+    resolution_key: str,
+    candidate_hwaccel_device: str,
+    repeats: int,
+    warmups: int,
+    recorder: RunRecorder | None = None,
+) -> BenchmarkComparison:
+    baseline = benchmark_decode(
+        fixture_key,
+        resolution_key=resolution_key,
+        hwaccel_device=None,
+        repeats=repeats,
+        warmups=warmups,
+        recorder=recorder,
+    )
+    candidate = benchmark_decode(
+        fixture_key,
+        resolution_key=resolution_key,
+        hwaccel_device=candidate_hwaccel_device,
+        repeats=repeats,
+        warmups=warmups,
+        recorder=recorder,
+    )
+    if recorder is not None:
+        recorder.emit(
+            "comparison_completed",
+            {
+                "benchmark": "decode",
+                "candidate_hwaccel_device": candidate_hwaccel_device,
+                "candidate_speedup": (
+                    candidate.median_frames_per_second / baseline.median_frames_per_second
+                ),
+            },
+        )
+    return BenchmarkComparison(
+        benchmark="decode",
+        fixture=baseline.fixture,
+        baseline=baseline,
+        candidate=candidate,
+    )
+
+
+def compare_encode(
+    fixture_key: str,
+    *,
+    resolution_key: str,
+    baseline_codec_name: str,
+    candidate_codec_name: str,
+    repeats: int,
+    warmups: int,
+    bit_rate: int,
+    recorder: RunRecorder | None = None,
+) -> BenchmarkComparison:
+    baseline = benchmark_encode(
+        fixture_key,
+        resolution_key=resolution_key,
+        codec_name=baseline_codec_name,
+        repeats=repeats,
+        warmups=warmups,
+        bit_rate=bit_rate,
+        recorder=recorder,
+    )
+    candidate = benchmark_encode(
+        fixture_key,
+        resolution_key=resolution_key,
+        codec_name=candidate_codec_name,
+        repeats=repeats,
+        warmups=warmups,
+        bit_rate=bit_rate,
+        recorder=recorder,
+    )
+    if recorder is not None:
+        recorder.emit(
+            "comparison_completed",
+            {
+                "benchmark": "encode",
+                "baseline_codec": baseline_codec_name,
+                "candidate_codec": candidate_codec_name,
+                "candidate_speedup": (
+                    candidate.median_frames_per_second / baseline.median_frames_per_second
+                ),
+            },
+        )
+    return BenchmarkComparison(
+        benchmark="encode",
+        fixture=baseline.fixture,
+        baseline=baseline,
+        candidate=candidate,
     )
 
 

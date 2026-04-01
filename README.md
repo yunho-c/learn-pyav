@@ -27,11 +27,17 @@ pixi run python -m pyav_hwaccel_autoresearch.cli benchmark decode pexels-night-s
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark decode pexels-night-sky --hwaccel videotoolbox
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark encode pexels-night-sky --codec libx264
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark encode pexels-night-sky --codec h264_videotoolbox
+pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-decode pexels-night-sky --hwaccel videotoolbox
+pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-encode pexels-night-sky --baseline-codec libx264 --candidate-codec h264_videotoolbox
 ```
 
 The fixture catalog now includes both small PyAV-curated 720p clips and larger native 4K sample
 sources. The 4K assets are intentionally heavyweight and are meant for real throughput comparisons,
 not fast default tests.
+
+Comparison runs write `baseline.json`, `candidate.json`, `comparison.json`, and
+`environment.json` into a single run directory under `results/runs/`, so baseline-vs-hardware
+claims are preserved as one experiment bundle instead of separate ad hoc reports.
 
 ## Current scope
 

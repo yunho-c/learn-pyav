@@ -25,7 +25,13 @@ from .paths import (
 )
 from .probes import collect_environment_report
 from .recording import RunRecorder
-from .runner import benchmark_decode, benchmark_encode, write_summary
+from .runner import (
+    benchmark_decode,
+    benchmark_encode,
+    compare_decode,
+    compare_encode,
+    write_summary,
+)
 
 app = typer.Typer(
     help="PyAV hardware acceleration research utilities",
@@ -189,6 +195,86 @@ def benchmark_encode_command(
     recorder.print_summary(summary)
     payload = summary.to_dict()
     payload["report_path"] = str(report_path)
+    payload["run_dir"] = str(recorder.run_dir)
+    payload["run_id"] = recorder.run_id
+    _emit_json(payload)
+
+
+@benchmark_app.command("compare-decode")
+def benchmark_compare_decode_command(
+    fixture_key: Annotated[str, typer.Argument(help="Fixture key from `fixtures list`")],
+    hwaccel: Annotated[
+        str,
+        typer.Option(help="Candidate hardware device name, e.g. videotoolbox"),
+    ],
+    resolution: Annotated[
+        str,
+        typer.Option(help="Resolution preset, e.g. 720p, 1080p, source"),
+    ] = "source",
+    repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
+    warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+) -> None:
+    """Compare software decode against a hardware decode candidate."""
+    recorder = RunRecorder("compare-decode", fixture_key, resolution, hwaccel)
+    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    comparison = compare_decode(
+        fixture_key,
+        resolution_key=resolution,
+        candidate_hwaccel_device=hwaccel,
+        repeats=repeats,
+        warmups=warmups,
+        recorder=recorder,
+    )
+    recorder.write_json("baseline.json", comparison.baseline.to_dict())
+    recorder.write_json("candidate.json", comparison.candidate.to_dict())
+    recorder.write_json("environment.json", collect_environment_report().to_dict())
+    recorder.write_comparison(comparison)
+    recorder.print_comparison(comparison)
+    payload = comparison.to_dict()
+    payload["run_dir"] = str(recorder.run_dir)
+    payload["run_id"] = recorder.run_id
+    _emit_json(payload)
+
+
+@benchmark_app.command("compare-encode")
+def benchmark_compare_encode_command(
+    fixture_key: Annotated[str, typer.Argument(help="Fixture key from `fixtures list`")],
+    baseline_codec: Annotated[
+        str,
+        typer.Option(help="Baseline encoder name, e.g. libx264"),
+    ],
+    candidate_codec: Annotated[
+        str,
+        typer.Option(help="Candidate encoder name, e.g. h264_videotoolbox"),
+    ],
+    resolution: Annotated[
+        str,
+        typer.Option(help="Resolution preset, e.g. 720p, 1080p, source"),
+    ] = "source",
+    repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
+    warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    bit_rate: Annotated[int, typer.Option(help="Target encoder bitrate in bits/sec")] = 4_000_000,
+) -> None:
+    """Compare one encoder against another on the same workload."""
+    case_label = f"{baseline_codec}-vs-{candidate_codec}"
+    recorder = RunRecorder("compare-encode", fixture_key, resolution, case_label)
+    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    comparison = compare_encode(
+        fixture_key,
+        resolution_key=resolution,
+        baseline_codec_name=baseline_codec,
+        candidate_codec_name=candidate_codec,
+        repeats=repeats,
+        warmups=warmups,
+        bit_rate=bit_rate,
+        recorder=recorder,
+    )
+    recorder.write_json("baseline.json", comparison.baseline.to_dict())
+    recorder.write_json("candidate.json", comparison.candidate.to_dict())
+    recorder.write_json("environment.json", collect_environment_report().to_dict())
+    recorder.write_comparison(comparison)
+    recorder.print_comparison(comparison)
+    payload = comparison.to_dict()
     payload["run_dir"] = str(recorder.run_dir)
     payload["run_id"] = recorder.run_id
     _emit_json(payload)

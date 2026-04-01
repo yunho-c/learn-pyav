@@ -12,7 +12,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from .models import BenchmarkSummary
+from .models import BenchmarkComparison, BenchmarkSummary
 from .paths import results_index_path, run_results_dir
 
 
@@ -102,6 +102,25 @@ class RunRecorder:
             handle.write(json.dumps(index_entry, sort_keys=True) + "\n")
         return path
 
+    def write_comparison(self, comparison: BenchmarkComparison) -> Path:
+        path = self.write_json("comparison.json", comparison.to_dict())
+        index_entry = {
+            "run_id": self.run_id,
+            "run_dir": str(self.run_dir),
+            "benchmark": comparison.benchmark,
+            "fixture_key": comparison.fixture.key,
+            "resolution_key": comparison.fixture.variant_key,
+            "baseline_case_name": comparison.baseline.case.name,
+            "candidate_case_name": comparison.candidate.case.name,
+            "candidate_speedup": comparison.candidate_speedup,
+            "winner": comparison.winner,
+        }
+        index_path = results_index_path()
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        with index_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(index_entry, sort_keys=True) + "\n")
+        return path
+
     def print_summary(self, summary: BenchmarkSummary) -> None:
         table = Table(title=f"{summary.benchmark.title()} Benchmark")
         table.add_column("Field", style="bold")
@@ -113,6 +132,28 @@ class RunRecorder:
         table.add_row("HWAccel", summary.case.hardware_accel or "software")
         table.add_row("Median wall", f"{summary.median_wall_seconds:.4f}s")
         table.add_row("Median FPS", f"{summary.median_frames_per_second:.2f}")
+        table.add_row("Run ID", self.run_id)
+        self.console.print(table)
+        self.console.print(f"[green]Saved run data[/green] {self.run_dir}")
+
+    def print_comparison(self, comparison: BenchmarkComparison) -> None:
+        table = Table(title=f"{comparison.benchmark.title()} Comparison")
+        table.add_column("Field", style="bold")
+        table.add_column("Value")
+        table.add_row("Fixture", comparison.fixture.key)
+        table.add_row("Resolution", comparison.fixture.variant_key)
+        table.add_row("Baseline", comparison.baseline.case.name)
+        table.add_row("Candidate", comparison.candidate.case.name)
+        table.add_row(
+            "Baseline FPS",
+            f"{comparison.baseline.median_frames_per_second:.2f}",
+        )
+        table.add_row(
+            "Candidate FPS",
+            f"{comparison.candidate.median_frames_per_second:.2f}",
+        )
+        table.add_row("Candidate speedup", f"{comparison.candidate_speedup:.2f}x")
+        table.add_row("Winner", comparison.winner)
         table.add_row("Run ID", self.run_id)
         self.console.print(table)
         self.console.print(f"[green]Saved run data[/green] {self.run_dir}")

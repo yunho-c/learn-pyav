@@ -110,3 +110,33 @@ class BenchmarkSummary:
             "median_wall_seconds": self.median_wall_seconds,
             "median_frames_per_second": self.median_frames_per_second,
         }
+
+
+@dataclass(frozen=True)
+class BenchmarkComparison:
+    benchmark: str
+    fixture: VideoFixtureSpec
+    baseline: BenchmarkSummary
+    candidate: BenchmarkSummary
+
+    @property
+    def candidate_speedup(self) -> float:
+        return self.candidate.median_frames_per_second / self.baseline.median_frames_per_second
+
+    @property
+    def winner(self) -> str:
+        if self.candidate_speedup > 1.0:
+            return "candidate"
+        if self.candidate_speedup < 1.0:
+            return "baseline"
+        return "tie"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "benchmark": self.benchmark,
+            "fixture": self.fixture.to_dict(),
+            "baseline": self.baseline.to_dict(),
+            "candidate": self.candidate.to_dict(),
+            "candidate_speedup": self.candidate_speedup,
+            "winner": self.winner,
+        }

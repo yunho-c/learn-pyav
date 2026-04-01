@@ -35,3 +35,18 @@ def test_fixtures_resolutions_command_outputs_presets() -> None:
     assert "source" in resolution_keys
     assert "720p" in resolution_keys
     assert "2160p" in resolution_keys
+
+
+def test_compare_decode_help_mentions_hwaccel_option() -> None:
+    result = runner.invoke(app, ["benchmark", "compare-decode", "--help"])
+
+    assert result.exit_code == 0
+    assert "--hwaccel" in result.stdout
+
+
+def test_compare_encode_help_mentions_codec_options() -> None:
+    result = runner.invoke(app, ["benchmark", "compare-encode", "--help"])
+
+    assert result.exit_code == 0
+    assert "--baseline-codec" in result.stdout
+    assert "--candidate-codec" in result.stdout
