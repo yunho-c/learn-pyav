@@ -14,6 +14,7 @@ from .fixtures import (
     inspect_fixture_variant,
     list_fixture_assets,
     list_resolution_specs,
+    variant_key_for,
 )
 from .paths import (
     artifacts_dir,
@@ -48,6 +49,10 @@ app.add_typer(benchmark_app, name="benchmark")
 
 def _emit_json(payload: Mapping[str, Any]) -> None:
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _workload_key(resolution: str, min_duration_seconds: int | None) -> str:
+    return variant_key_for(resolution, min_duration_seconds)
 
 
 @app.command()
@@ -112,10 +117,22 @@ def fixtures_prepare(
         str,
         typer.Option(help="Resolution preset, e.g. 720p, 1080p, source"),
     ] = "source",
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
 ) -> None:
     """Prepare a source fixture variant at a specific resolution."""
-    path = ensure_prepared_fixture(fixture_key, resolution)
-    fixture = inspect_fixture_variant(fixture_key, resolution)
+    path = ensure_prepared_fixture(
+        fixture_key,
+        resolution,
+        min_duration_seconds=min_duration_seconds,
+    )
+    fixture = inspect_fixture_variant(
+        fixture_key,
+        resolution,
+        min_duration_seconds=min_duration_seconds,
+    )
     _emit_json({"path": str(path), "fixture": fixture.to_dict()})
 
 
@@ -132,17 +149,23 @@ def benchmark_decode_command(
     ] = None,
     repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
     warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
     json_output: Annotated[
         Path | None,
         typer.Option(help="Optional output path for the JSON summary"),
     ] = None,
 ) -> None:
     """Benchmark video decode."""
-    recorder = RunRecorder("decode", fixture_key, resolution, hwaccel or "software")
-    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    workload_key = _workload_key(resolution, min_duration_seconds)
+    recorder = RunRecorder("decode", fixture_key, workload_key, hwaccel or "software")
+    recorder.note(f"Preparing fixture {fixture_key} at {workload_key}")
     summary = benchmark_decode(
         fixture_key,
         resolution_key=resolution,
+        min_duration_seconds=min_duration_seconds,
         hwaccel_device=hwaccel,
         repeats=repeats,
         warmups=warmups,
@@ -170,6 +193,10 @@ def benchmark_encode_command(
     ] = "source",
     repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
     warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
     bit_rate: Annotated[int, typer.Option(help="Target encoder bitrate in bits/sec")] = 4_000_000,
     json_output: Annotated[
         Path | None,
@@ -177,11 +204,13 @@ def benchmark_encode_command(
     ] = None,
 ) -> None:
     """Benchmark video encode."""
-    recorder = RunRecorder("encode", fixture_key, resolution, codec)
-    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    workload_key = _workload_key(resolution, min_duration_seconds)
+    recorder = RunRecorder("encode", fixture_key, workload_key, codec)
+    recorder.note(f"Preparing fixture {fixture_key} at {workload_key}")
     summary = benchmark_encode(
         fixture_key,
         resolution_key=resolution,
+        min_duration_seconds=min_duration_seconds,
         codec_name=codec,
         repeats=repeats,
         warmups=warmups,
@@ -213,13 +242,19 @@ def benchmark_compare_decode_command(
     ] = "source",
     repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
     warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
 ) -> None:
     """Compare software decode against a hardware decode candidate."""
-    recorder = RunRecorder("compare-decode", fixture_key, resolution, hwaccel)
-    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    workload_key = _workload_key(resolution, min_duration_seconds)
+    recorder = RunRecorder("compare-decode", fixture_key, workload_key, hwaccel)
+    recorder.note(f"Preparing fixture {fixture_key} at {workload_key}")
     comparison = compare_decode(
         fixture_key,
         resolution_key=resolution,
+        min_duration_seconds=min_duration_seconds,
         candidate_hwaccel_device=hwaccel,
         repeats=repeats,
         warmups=warmups,
@@ -253,15 +288,21 @@ def benchmark_compare_encode_command(
     ] = "source",
     repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
     warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
     bit_rate: Annotated[int, typer.Option(help="Target encoder bitrate in bits/sec")] = 4_000_000,
 ) -> None:
     """Compare one encoder against another on the same workload."""
     case_label = f"{baseline_codec}-vs-{candidate_codec}"
-    recorder = RunRecorder("compare-encode", fixture_key, resolution, case_label)
-    recorder.note(f"Preparing fixture {fixture_key} at {resolution}")
+    workload_key = _workload_key(resolution, min_duration_seconds)
+    recorder = RunRecorder("compare-encode", fixture_key, workload_key, case_label)
+    recorder.note(f"Preparing fixture {fixture_key} at {workload_key}")
     comparison = compare_encode(
         fixture_key,
         resolution_key=resolution,
+        min_duration_seconds=min_duration_seconds,
         baseline_codec_name=baseline_codec,
         candidate_codec_name=candidate_codec,
         repeats=repeats,

@@ -125,6 +125,12 @@ def prepared_fixture_path(asset: FixtureAsset, resolution_key: str) -> Path:
     return prepared_fixture_dir() / asset.key / resolution_key / f"{source_name}.mp4"
 
 
+def variant_key_for(resolution_key: str, min_duration_seconds: int | None = None) -> str:
+    if min_duration_seconds is None:
+        return resolution_key
+    return f"{resolution_key}-{min_duration_seconds}s"
+
+
 def _download_to_path(source_url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = Request(source_url, headers=DEFAULT_DOWNLOAD_HEADERS)
@@ -206,51 +212,73 @@ def inspect_fixture(key: str) -> VideoFixtureSpec:
 def ensure_prepared_fixture(
     key: str,
     resolution_key: str,
+    min_duration_seconds: int | None = None,
     force: bool = False,
 ) -> Path:
     asset = get_fixture_asset(key)
     resolution = get_resolution_spec(resolution_key)
     source_path = ensure_fixture(key)
-    if resolution.key == "source":
+    source_spec = inspect_fixture(key)
+    needs_duration_control = min_duration_seconds is not None
+    needs_duration_extension = (
+        needs_duration_control and source_spec.duration_seconds < min_duration_seconds
+    )
+    if resolution.key == "source" and not needs_duration_control:
         return source_path
 
-    target_path = prepared_fixture_path(asset, resolution.key)
+    variant_key = variant_key_for(resolution.key, min_duration_seconds)
+    target_path = prepared_fixture_path(asset, variant_key)
     if target_path.exists() and not force:
         return target_path
 
-    source_spec = inspect_fixture(key)
     target_height = resolution.target_height
     if target_height is None:
-        return source_path
+        target_width = source_spec.width
+        target_height = source_spec.height
+    else:
+        target_width, target_height = _derive_scaled_dimensions(
+            source_spec.width,
+            source_spec.height,
+            target_height,
+        )
 
-    target_width, target_height = _derive_scaled_dimensions(
-        source_spec.width,
-        source_spec.height,
-        target_height,
-    )
+    filter_args: list[str] = []
+    if target_width != source_spec.width or target_height != source_spec.height:
+        filter_args = ["-vf", f"scale={target_width}:{target_height}"]
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
         "ffmpeg",
         "-y",
-        "-i",
-        str(source_path),
-        "-vf",
-        f"scale={target_width}:{target_height}",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "18",
-        "-an",
-        str(target_path),
     ]
+    if needs_duration_extension:
+        command.extend(["-stream_loop", "-1"])
+    command.extend(["-i", str(source_path)])
+    if min_duration_seconds is not None:
+        command.extend(["-t", str(min_duration_seconds)])
+    command.extend(
+        [
+            *filter_args,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "18",
+            "-an",
+            str(target_path),
+        ]
+    )
     subprocess.run(command, check=True, capture_output=True, text=True)
     return target_path
 
 
-def inspect_fixture_variant(key: str, resolution_key: str) -> VideoFixtureSpec:
+def inspect_fixture_variant(
+    key: str,
+    resolution_key: str,
+    min_duration_seconds: int | None = None,
+) -> VideoFixtureSpec:
     asset = get_fixture_asset(key)
-    path = ensure_prepared_fixture(key, resolution_key)
-    return _inspect_video_path(asset, path, variant_key=resolution_key)
+    variant_key = variant_key_for(resolution_key, min_duration_seconds)
+    path = ensure_prepared_fixture(key, resolution_key, min_duration_seconds=min_duration_seconds)
+    return _inspect_video_path(asset, path, variant_key=variant_key)

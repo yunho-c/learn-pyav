@@ -147,20 +147,33 @@ def benchmark_decode(
     fixture_key: str,
     *,
     resolution_key: str,
+    min_duration_seconds: int | None = None,
     hwaccel_device: str | None,
     repeats: int,
     warmups: int,
     recorder: RunRecorder | None = None,
 ) -> BenchmarkSummary:
-    fixture_path = ensure_prepared_fixture(fixture_key, resolution_key)
-    fixture = inspect_fixture_variant(fixture_key, resolution_key)
+    fixture_path = ensure_prepared_fixture(
+        fixture_key,
+        resolution_key,
+        min_duration_seconds=min_duration_seconds,
+    )
+    fixture = inspect_fixture_variant(
+        fixture_key,
+        resolution_key,
+        min_duration_seconds=min_duration_seconds,
+    )
+    case_options: dict[str, str] = {}
+    if min_duration_seconds is not None:
+        case_options["min_duration_seconds"] = str(min_duration_seconds)
     case = BenchmarkCase(
-        name=f"{fixture_key}-{resolution_key}-decode-{hwaccel_device or 'software'}",
+        name=f"{fixture_key}-{fixture.variant_key}-decode-{hwaccel_device or 'software'}",
         mode="decode",
-        resolution_key=resolution_key,
+        resolution_key=fixture.variant_key,
         container=fixture.container,
         codec=fixture.codec,
         hardware_accel=hwaccel_device,
+        options=case_options,
     )
 
     if recorder is not None:
@@ -169,7 +182,7 @@ def benchmark_decode(
             {
                 "benchmark": "decode",
                 "fixture_key": fixture_key,
-                "resolution_key": resolution_key,
+                "resolution_key": fixture.variant_key,
                 "hardware_accel": hwaccel_device,
             },
         )
@@ -194,22 +207,34 @@ def benchmark_encode(
     fixture_key: str,
     *,
     resolution_key: str,
+    min_duration_seconds: int | None = None,
     codec_name: str,
     repeats: int,
     warmups: int,
     bit_rate: int,
     recorder: RunRecorder | None = None,
 ) -> BenchmarkSummary:
-    fixture_path = ensure_prepared_fixture(fixture_key, resolution_key)
-    fixture = inspect_fixture_variant(fixture_key, resolution_key)
+    fixture_path = ensure_prepared_fixture(
+        fixture_key,
+        resolution_key,
+        min_duration_seconds=min_duration_seconds,
+    )
+    fixture = inspect_fixture_variant(
+        fixture_key,
+        resolution_key,
+        min_duration_seconds=min_duration_seconds,
+    )
+    case_options = {"bit_rate": str(bit_rate)}
+    if min_duration_seconds is not None:
+        case_options["min_duration_seconds"] = str(min_duration_seconds)
     case = BenchmarkCase(
-        name=f"{fixture_key}-{resolution_key}-encode-{codec_name}",
+        name=f"{fixture_key}-{fixture.variant_key}-encode-{codec_name}",
         mode="encode",
-        resolution_key=resolution_key,
+        resolution_key=fixture.variant_key,
         container="mp4",
         codec=codec_name,
         hardware_accel="videotoolbox" if "videotoolbox" in codec_name else None,
-        options={"bit_rate": str(bit_rate)},
+        options=case_options,
     )
 
     if recorder is not None:
@@ -218,7 +243,7 @@ def benchmark_encode(
             {
                 "benchmark": "encode",
                 "fixture_key": fixture_key,
-                "resolution_key": resolution_key,
+                "resolution_key": fixture.variant_key,
                 "codec": codec_name,
                 "bit_rate": bit_rate,
             },
@@ -244,6 +269,7 @@ def compare_decode(
     fixture_key: str,
     *,
     resolution_key: str,
+    min_duration_seconds: int | None = None,
     candidate_hwaccel_device: str,
     repeats: int,
     warmups: int,
@@ -252,6 +278,7 @@ def compare_decode(
     baseline = benchmark_decode(
         fixture_key,
         resolution_key=resolution_key,
+        min_duration_seconds=min_duration_seconds,
         hwaccel_device=None,
         repeats=repeats,
         warmups=warmups,
@@ -260,6 +287,7 @@ def compare_decode(
     candidate = benchmark_decode(
         fixture_key,
         resolution_key=resolution_key,
+        min_duration_seconds=min_duration_seconds,
         hwaccel_device=candidate_hwaccel_device,
         repeats=repeats,
         warmups=warmups,
@@ -288,6 +316,7 @@ def compare_encode(
     fixture_key: str,
     *,
     resolution_key: str,
+    min_duration_seconds: int | None = None,
     baseline_codec_name: str,
     candidate_codec_name: str,
     repeats: int,
@@ -298,6 +327,7 @@ def compare_encode(
     baseline = benchmark_encode(
         fixture_key,
         resolution_key=resolution_key,
+        min_duration_seconds=min_duration_seconds,
         codec_name=baseline_codec_name,
         repeats=repeats,
         warmups=warmups,
@@ -307,6 +337,7 @@ def compare_encode(
     candidate = benchmark_encode(
         fixture_key,
         resolution_key=resolution_key,
+        min_duration_seconds=min_duration_seconds,
         codec_name=candidate_codec_name,
         repeats=repeats,
         warmups=warmups,

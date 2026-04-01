@@ -42,6 +42,7 @@ def test_compare_decode_help_mentions_hwaccel_option() -> None:
 
     assert result.exit_code == 0
     assert "--hwaccel" in result.stdout
+    assert "--min-duration-seconds" in result.stdout
 
 
 def test_compare_encode_help_mentions_codec_options() -> None:
@@ -50,3 +51,4 @@ def test_compare_encode_help_mentions_codec_options() -> None:
     assert result.exit_code == 0
     assert "--baseline-codec" in result.stdout
     assert "--candidate-codec" in result.stdout
+    assert "--min-duration-seconds" in result.stdout

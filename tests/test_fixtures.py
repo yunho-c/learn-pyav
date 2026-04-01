@@ -2,6 +2,8 @@ from pyav_hwaccel_autoresearch.fixtures import (
     fixture_local_path,
     get_fixture_asset,
     list_fixture_assets,
+    prepared_fixture_path,
+    variant_key_for,
 )
 
 
@@ -28,3 +30,16 @@ def test_fixture_local_path_stays_under_fixture_cache() -> None:
 
     assert "fixtures" in fixture_local_path(asset).parts
     assert fixture_local_path(asset).name.endswith(".mp4")
+
+
+def test_variant_key_for_includes_min_duration_suffix() -> None:
+    assert variant_key_for("source") == "source"
+    assert variant_key_for("720p", 30) == "720p-30s"
+
+
+def test_prepared_fixture_path_uses_variant_key_directory() -> None:
+    asset = get_fixture_asset("pexels-night-sky")
+    path = prepared_fixture_path(asset, "720p-30s")
+
+    assert "prepared" in path.parts
+    assert "720p-30s" in path.parts
