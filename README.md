@@ -34,9 +34,9 @@ pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-all --resolut
 pixi run python -m pyav_hwaccel_autoresearch.cli report suite-table results/runs/<run-id>/suite.json
 ```
 
-The fixture catalog now includes both small PyAV-curated 720p clips and larger native 4K sample
-sources. The 4K assets are intentionally heavyweight and are meant for real throughput comparisons,
-not fast default tests.
+The active fixture catalog now includes a small PyAV-curated 720p clip, native 1080p and 1440p
+H.264 fixtures, and two native 4K fixtures. The higher-resolution assets are intentionally
+heavyweight and are meant for real throughput comparisons, not fast default tests.
 
 Comparison runs write `baseline.json`, `candidate.json`, `comparison.json`, and
 `environment.json` into a single run directory under `results/runs/`, so baseline-vs-hardware

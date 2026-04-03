@@ -36,9 +36,30 @@ FIXTURE_ASSETS: dict[str, FixtureAsset] = {
         ),
         relative_path="pexels/time-lapse-video-of-sunset-by-the-sea-854400.mp4",
         description="PyAV curated H.264 sunset timelapse clip.",
+        enabled=False,
         width_hint=1280,
         height_hint=720,
         codec_hint="h264",
+    ),
+    "filesamples-1080p-h264": FixtureAsset(
+        key="filesamples-1080p-h264",
+        source_url="https://filesamples.com/samples/video/mp4/sample_1920x1080.mp4",
+        relative_path="filesamples/sample_1920x1080.mp4",
+        description="FileSamples native 1080p MP4 fixture, H.264, 1920x1080, about 24 fps.",
+        width_hint=1920,
+        height_hint=1080,
+        codec_hint="h264",
+        size_mb_hint=36,
+    ),
+    "samplecat-1440p-h264": FixtureAsset(
+        key="samplecat-1440p-h264",
+        source_url="https://disk.sample.cat/samples/mp4/1416529-uhd_2560_1440_30fps.mp4",
+        relative_path="samplecat/1416529-uhd_2560_1440_30fps.mp4",
+        description="Sample.Cat native 1440p MP4 fixture, H.264, 2560x1440, 30 fps.",
+        width_hint=2560,
+        height_hint=1440,
+        codec_hint="h264",
+        size_mb_hint=18,
     ),
     "filesamples-4k-h264": FixtureAsset(
         key="filesamples-4k-h264",
@@ -94,8 +115,11 @@ RESOLUTION_SPECS: dict[str, ResolutionSpec] = {
 }
 
 
-def list_fixture_assets() -> list[FixtureAsset]:
-    return list(FIXTURE_ASSETS.values())
+def list_fixture_assets(*, include_disabled: bool = False) -> list[FixtureAsset]:
+    fixtures = list(FIXTURE_ASSETS.values())
+    if include_disabled:
+        return fixtures
+    return [fixture for fixture in fixtures if fixture.enabled]
 
 
 def list_resolution_specs() -> list[ResolutionSpec]:
