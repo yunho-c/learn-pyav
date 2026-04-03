@@ -70,3 +70,11 @@ def test_report_suite_table_help_mentions_format() -> None:
 
     assert result.exit_code == 0
     assert "--format" in result.stdout
+
+
+def test_report_suite_graph_help_mentions_output() -> None:
+    result = runner.invoke(app, ["report", "suite-graph", "--help"])
+
+    assert result.exit_code == 0
+    assert "--output" in result.stdout
+    assert "--dpi" in result.stdout

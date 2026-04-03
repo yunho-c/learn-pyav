@@ -23,6 +23,9 @@ resolutions:
 suite-table path format="markdown":
     pixi run python -m {{module}} report suite-table {{path}} --format {{format}}
 
+suite-graph path output="" dpi="160":
+    pixi run python -m {{module}} report suite-graph {{path}} {{if output != "" { "--output " + output } else { "" }}} --dpi {{dpi}}
+
 lint:
     pixi run lint
 

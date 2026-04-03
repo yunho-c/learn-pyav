@@ -1,4 +1,9 @@
-from pyav_hwaccel_autoresearch.reporting import render_suite_table, suite_rows
+from pyav_hwaccel_autoresearch.reporting import (
+    default_suite_graph_path,
+    render_suite_table,
+    suite_rows,
+    write_suite_graph,
+)
 
 
 def _sample_suite() -> dict:
@@ -60,3 +65,19 @@ def test_render_suite_table_outputs_tsv() -> None:
 
     assert table.splitlines()[0].startswith("fixture_key\tcodec_hint\tresolution_key")
     assert "fixture-a\th264\tsource-30s\tdecode\tcompleted\tbaseline" in table
+
+
+def test_default_suite_graph_path_uses_neighbor_file() -> None:
+    suite_path = default_suite_graph_path.__globals__["Path"]("results/runs/run-1/suite.json")
+
+    assert default_suite_graph_path(suite_path).name == "suite-graph.png"
+
+
+def test_write_suite_graph_creates_image(tmp_path) -> None:
+    destination = tmp_path / "suite-graph.svg"
+
+    path = write_suite_graph(_sample_suite(), destination, title="Sample Suite", dpi=120)
+
+    assert path == destination
+    assert destination.exists()
+    assert destination.read_text().lstrip().startswith("<?xml")

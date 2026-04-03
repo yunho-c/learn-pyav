@@ -28,7 +28,13 @@ from .paths import (
 )
 from .probes import collect_environment_report
 from .recording import RunRecorder
-from .reporting import ReportFormat, load_suite, render_suite_table
+from .reporting import (
+    ReportFormat,
+    default_suite_graph_path,
+    load_suite,
+    render_suite_table,
+    write_suite_graph,
+)
 from .runner import (
     benchmark_decode,
     benchmark_encode,
@@ -529,6 +535,32 @@ def report_suite_table_command(
         raise typer.BadParameter("format must be one of: markdown, json, tsv")
     suite = load_suite(suite_path)
     typer.echo(render_suite_table(suite, format=cast(ReportFormat, format)))
+
+
+@report_app.command("suite-graph")
+def report_suite_graph_command(
+    suite_path: Annotated[
+        Path,
+        typer.Argument(help="Path to a saved suite.json file"),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option(help="Optional output image path, e.g. suite-graph.png"),
+    ] = None,
+    title: Annotated[
+        str | None,
+        typer.Option(help="Optional chart title override"),
+    ] = None,
+    dpi: Annotated[
+        int,
+        typer.Option(help="Image DPI for raster output"),
+    ] = 160,
+) -> None:
+    """Render a software-vs-hardware FPS graph from a saved suite.json."""
+    suite = load_suite(suite_path)
+    destination = output or default_suite_graph_path(suite_path)
+    path = write_suite_graph(suite, destination, title=title, dpi=dpi)
+    _emit_json({"suite_path": str(suite_path), "graph_path": str(path)})
 
 
 def main() -> None:

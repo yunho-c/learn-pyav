@@ -32,6 +32,7 @@ pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-encode pexels
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-decode pexels-night-sky --hwaccel videotoolbox --min-duration-seconds 30
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-all --resolution source --min-duration-seconds 30
 pixi run python -m pyav_hwaccel_autoresearch.cli report suite-table results/runs/<run-id>/suite.json
+pixi run python -m pyav_hwaccel_autoresearch.cli report suite-graph results/runs/<run-id>/suite.json
 ```
 
 The active fixture catalog now includes a small PyAV-curated 720p clip, native 1080p and 1440p

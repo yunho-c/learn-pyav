@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
+import matplotlib
+
+matplotlib.use("Agg")
+
 ReportFormat = Literal["markdown", "json", "tsv"]
 
 
@@ -113,3 +117,98 @@ def render_suite_table(suite: dict[str, Any], format: ReportFormat = "markdown")
             + " |"
         )
     return "\n".join(lines)
+
+
+def default_suite_graph_path(suite_path: Path, suffix: str = ".png") -> Path:
+    return suite_path.with_name(f"{suite_path.stem}-graph{suffix}")
+
+
+def write_suite_graph(
+    suite: dict[str, Any],
+    destination: Path,
+    *,
+    title: str | None = None,
+    dpi: int = 160,
+) -> Path:
+    from matplotlib import pyplot as plt
+
+    rows = [row for row in suite_rows(suite) if row["status"] == "completed"]
+    decode_rows = [row for row in rows if row["kind"] == "decode"]
+    encode_rows = [row for row in rows if row["kind"] == "encode"]
+
+    if not rows:
+        raise ValueError("suite does not contain any completed comparisons to plot")
+
+    def fixture_label(row: dict[str, Any]) -> str:
+        return f"{row['fixture_key']} ({row['resolution_key']})"
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), constrained_layout=True)
+    kind_specs = [
+        ("Decode", decode_rows, axes[0]),
+        ("Encode", encode_rows, axes[1]),
+    ]
+    baseline_color = "#355C7D"
+    candidate_color = "#2A9D8F"
+
+    for kind_title, kind_rows, axis in kind_specs:
+        if not kind_rows:
+            axis.set_visible(False)
+            continue
+
+        labels = [fixture_label(row) for row in kind_rows]
+        positions = list(range(len(kind_rows)))
+        baseline = [float(row["baseline_fps"]) for row in kind_rows]
+        candidate = [float(row["candidate_fps"]) for row in kind_rows]
+        bar_height = 0.36
+
+        axis.barh(
+            [position - bar_height / 2 for position in positions],
+            baseline,
+            height=bar_height,
+            color=baseline_color,
+            label="Software",
+        )
+        axis.barh(
+            [position + bar_height / 2 for position in positions],
+            candidate,
+            height=bar_height,
+            color=candidate_color,
+            label="Hardware",
+        )
+        axis.set_title(kind_title)
+        axis.set_xlabel("Frames per second")
+        axis.set_yticks(positions)
+        axis.set_yticklabels(labels)
+        axis.invert_yaxis()
+        axis.grid(axis="x", alpha=0.25)
+
+        max_value = max(max(baseline), max(candidate))
+        padding = max_value * 0.04 if max_value else 1.0
+        axis.set_xlim(0, max_value + padding * 6)
+
+        for index, row in enumerate(kind_rows):
+            winner = "HW" if row["winner"] == "candidate" else "SW"
+            speedup = row["candidate_speedup"]
+            axis.text(
+                max(baseline[index], candidate[index]) + padding,
+                index,
+                f"{winner} {speedup:.2f}x",
+                va="center",
+                fontsize=8,
+            )
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.02),
+        ncol=2,
+        frameon=False,
+    )
+    fig.suptitle(title or suite.get("run_id") or "PyAV Compare-All Suite", fontsize=14)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destination, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    return destination
