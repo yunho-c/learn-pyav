@@ -12,7 +12,9 @@ def test_fixture_catalog_contains_expected_keys() -> None:
 
     assert "pexels-night-sky" in fixture_keys
     assert "filesamples-1080p-h264" in fixture_keys
+    assert "jellyfin-1080p-hevc" in fixture_keys
     assert "samplecat-1440p-h264" in fixture_keys
+    assert "filesamples-1440p-hevc" in fixture_keys
     assert "filesamples-4k-h264" in fixture_keys
     assert "gpac-uhd-hevc-4k" in fixture_keys
     assert "pexels-sunset-sea" not in fixture_keys
@@ -36,6 +38,15 @@ def test_native_1080p_fixture_metadata_hints_are_present() -> None:
     assert asset.size_mb_hint == 36
 
 
+def test_native_1080p_hevc_fixture_metadata_hints_are_present() -> None:
+    asset = get_fixture_asset("jellyfin-1080p-hevc")
+
+    assert asset.width_hint == 1920
+    assert asset.height_hint == 1080
+    assert asset.codec_hint == "hevc"
+    assert asset.size_mb_hint == 11
+
+
 def test_native_1440p_fixture_metadata_hints_are_present() -> None:
     asset = get_fixture_asset("samplecat-1440p-h264")
 
@@ -43,6 +54,19 @@ def test_native_1440p_fixture_metadata_hints_are_present() -> None:
     assert asset.height_hint == 1440
     assert asset.codec_hint == "h264"
     assert asset.size_mb_hint == 18
+
+
+def test_remuxed_1440p_hevc_fixture_metadata_hints_are_present() -> None:
+    asset = get_fixture_asset("filesamples-1440p-hevc")
+
+    assert asset.width_hint == 2560
+    assert asset.height_hint == 1440
+    assert asset.codec_hint == "hevc"
+    assert asset.size_mb_hint == 34
+    assert asset.download_relative_path == "filesamples/sample_2560x1440.hevc"
+    assert asset.relative_path == "filesamples/sample_2560x1440.mkv"
+    assert asset.source_demuxer == "hevc"
+    assert asset.source_frame_rate == "25/1"
 
 
 def test_fixture_local_path_stays_under_fixture_cache() -> None:

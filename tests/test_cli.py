@@ -24,7 +24,9 @@ def test_fixtures_list_command_outputs_catalog() -> None:
     fixture_keys = {fixture["key"] for fixture in payload["fixtures"]}
     assert "pexels-night-sky" in fixture_keys
     assert "filesamples-1080p-h264" in fixture_keys
+    assert "jellyfin-1080p-hevc" in fixture_keys
     assert "samplecat-1440p-h264" in fixture_keys
+    assert "filesamples-1440p-hevc" in fixture_keys
     assert "filesamples-4k-h264" in fixture_keys
     assert "pexels-sunset-sea" not in fixture_keys
 

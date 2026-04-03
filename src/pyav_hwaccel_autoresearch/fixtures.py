@@ -51,6 +51,19 @@ FIXTURE_ASSETS: dict[str, FixtureAsset] = {
         codec_hint="h264",
         size_mb_hint=36,
     ),
+    "jellyfin-1080p-hevc": FixtureAsset(
+        key="jellyfin-1080p-hevc",
+        source_url=(
+            "https://fra1.mirror.jellyfin.org/test-videos/SDR/HEVC%208bit/"
+            "Test%20Jellyfin%201080p%20HEVC%208bit%203M.mp4"
+        ),
+        relative_path="jellyfin/test-jellyfin-1080p-hevc-8bit-3m.mp4",
+        description="Jellyfin native 1080p MP4 fixture, HEVC, 1920x1080, 60 fps, 3 Mbps.",
+        width_hint=1920,
+        height_hint=1080,
+        codec_hint="hevc",
+        size_mb_hint=11,
+    ),
     "samplecat-1440p-h264": FixtureAsset(
         key="samplecat-1440p-h264",
         source_url="https://disk.sample.cat/samples/mp4/1416529-uhd_2560_1440_30fps.mp4",
@@ -60,6 +73,21 @@ FIXTURE_ASSETS: dict[str, FixtureAsset] = {
         height_hint=1440,
         codec_hint="h264",
         size_mb_hint=18,
+    ),
+    "filesamples-1440p-hevc": FixtureAsset(
+        key="filesamples-1440p-hevc",
+        source_url="https://filesamples.com/samples/video/hevc/sample_2560x1440.hevc",
+        relative_path="filesamples/sample_2560x1440.mkv",
+        download_relative_path="filesamples/sample_2560x1440.hevc",
+        source_demuxer="hevc",
+        source_frame_rate="25/1",
+        description=(
+            "FileSamples native 1440p HEVC fixture remuxed locally from a raw bitstream into MKV."
+        ),
+        width_hint=2560,
+        height_hint=1440,
+        codec_hint="hevc",
+        size_mb_hint=34,
     ),
     "filesamples-4k-h264": FixtureAsset(
         key="filesamples-4k-h264",
@@ -144,6 +172,11 @@ def fixture_local_path(asset: FixtureAsset) -> Path:
     return fixture_cache_dir() / asset.relative_path
 
 
+def fixture_download_path(asset: FixtureAsset) -> Path:
+    relative_path = asset.download_relative_path or asset.relative_path
+    return fixture_cache_dir() / relative_path
+
+
 def prepared_fixture_path(asset: FixtureAsset, resolution_key: str) -> Path:
     source_name = Path(asset.relative_path).stem
     return prepared_fixture_dir() / asset.key / resolution_key / f"{source_name}.mp4"
@@ -174,11 +207,48 @@ def _download_to_path(source_url: str, destination: Path) -> None:
     tmp_path.replace(destination)
 
 
+def _remux_fixture(
+    source_path: Path,
+    destination: Path,
+    *,
+    source_demuxer: str | None,
+    source_frame_rate: str | None,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    if source_demuxer is not None:
+        command.extend(["-f", source_demuxer])
+    command.extend(["-i", str(source_path), "-c", "copy"])
+    if source_demuxer == "hevc":
+        frame_rate = source_frame_rate or "25/1"
+        command.extend(
+            [
+                "-bsf:v",
+                f"setts=pts=N:dts=N:duration=1:time_base={frame_rate}",
+            ]
+        )
+    command.append(str(destination))
+    subprocess.run(command, check=True)
+
+
 def ensure_fixture(key: str, force: bool = False) -> Path:
     asset = get_fixture_asset(key)
     target = fixture_local_path(asset)
-    if force or not target.exists():
-        _download_to_path(asset.source_url, target)
+    download_target = fixture_download_path(asset)
+    needs_download = force or not download_target.exists()
+    needs_remux = download_target != target and (force or not target.exists())
+
+    if needs_download:
+        _download_to_path(asset.source_url, download_target)
+    if needs_remux:
+        _remux_fixture(
+            download_target,
+            target,
+            source_demuxer=asset.source_demuxer,
+            source_frame_rate=asset.source_frame_rate,
+        )
+    elif download_target == target and needs_download:
+        return download_target
     return target
 
 
@@ -202,14 +272,32 @@ def _derive_scaled_dimensions(width: int, height: int, target_height: int) -> tu
     return scaled_width, target_height
 
 
+def _count_video_frames(path: Path) -> int:
+    with av.open(str(path)) as container:
+        stream = container.streams.video[0]
+        return sum(1 for _ in container.decode(stream))
+
+
 def _inspect_video_path(asset: FixtureAsset, path: Path, variant_key: str) -> VideoFixtureSpec:
     with av.open(str(path)) as container:
         stream = container.streams.video[0]
         fps = float(stream.average_rate) if stream.average_rate is not None else 0.0
+        frame_count = stream.frames
         if stream.duration is not None and stream.time_base is not None:
             duration_seconds = float(stream.duration * stream.time_base)
+        elif container.duration is not None:
+            duration_seconds = float(container.duration / av.time_base)
         else:
             duration_seconds = 0.0
+
+        if frame_count <= 0:
+            frame_count = _count_video_frames(path)
+
+        expected_duration = float(frame_count / fps) if frame_count > 0 and fps > 0.0 else 0.0
+        if expected_duration > 0.0 and (
+            duration_seconds <= 0.0 or duration_seconds > (expected_duration * 4.0)
+        ):
+            duration_seconds = expected_duration
 
         return VideoFixtureSpec(
             key=asset.key,
@@ -223,7 +311,7 @@ def _inspect_video_path(asset: FixtureAsset, path: Path, variant_key: str) -> Vi
             height=stream.height,
             fps=fps,
             duration_seconds=duration_seconds,
-            frames=stream.frames,
+            frames=frame_count,
         )
 
 
@@ -242,6 +330,7 @@ def ensure_prepared_fixture(
     asset = get_fixture_asset(key)
     resolution = get_resolution_spec(resolution_key)
     source_path = ensure_fixture(key)
+    preparation_input_path = fixture_download_path(asset) if asset.source_demuxer is not None else source_path
     source_spec = inspect_fixture(key)
     needs_duration_control = min_duration_seconds is not None
     needs_duration_extension = (
@@ -277,7 +366,11 @@ def ensure_prepared_fixture(
     ]
     if needs_duration_extension:
         command.extend(["-stream_loop", "-1"])
-    command.extend(["-i", str(source_path)])
+    if asset.source_demuxer is not None:
+        command.extend(["-f", asset.source_demuxer])
+    if asset.source_frame_rate is not None:
+        command.extend(["-r", asset.source_frame_rate])
+    command.extend(["-i", str(preparation_input_path)])
     if min_duration_seconds is not None:
         command.extend(["-t", str(min_duration_seconds)])
     command.extend(

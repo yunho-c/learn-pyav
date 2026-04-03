@@ -11,6 +11,9 @@ class FixtureAsset:
     source_url: str
     relative_path: str
     description: str
+    download_relative_path: str | None = None
+    source_demuxer: str | None = None
+    source_frame_rate: str | None = None
     enabled: bool = True
     width_hint: int | None = None
     height_hint: int | None = None
