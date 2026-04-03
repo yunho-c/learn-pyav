@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from av.codec import Codec
 
 from .fixtures import (
     ensure_fixture,
     ensure_prepared_fixture,
+    get_fixture_asset,
     inspect_fixture,
     inspect_fixture_variant,
     list_fixture_assets,
@@ -53,6 +55,20 @@ def _emit_json(payload: Mapping[str, Any]) -> None:
 
 def _workload_key(resolution: str, min_duration_seconds: int | None) -> str:
     return variant_key_for(resolution, min_duration_seconds)
+
+
+def _fixture_selection(fixture_keys: list[str]) -> list[str]:
+    if fixture_keys:
+        return fixture_keys
+    return [fixture.key for fixture in list_fixture_assets()]
+
+
+def _encoder_available(codec_name: str) -> bool:
+    try:
+        Codec(codec_name, "w")
+    except Exception:
+        return False
+    return True
 
 
 @app.command()
@@ -318,6 +334,179 @@ def benchmark_compare_encode_command(
     payload = comparison.to_dict()
     payload["run_dir"] = str(recorder.run_dir)
     payload["run_id"] = recorder.run_id
+    _emit_json(payload)
+
+
+@benchmark_app.command("compare-all")
+def benchmark_compare_all_command(
+    fixture: Annotated[
+        list[str] | None,
+        typer.Option(help="Optional fixture key filter; repeat for multiple fixtures"),
+    ] = None,
+    resolution: Annotated[
+        str,
+        typer.Option(help="Resolution preset, e.g. 720p, 1080p, source"),
+    ] = "source",
+    repeats: Annotated[int, typer.Option(help="Number of measured runs")] = 3,
+    warmups: Annotated[int, typer.Option(help="Number of warmup runs")] = 1,
+    min_duration_seconds: Annotated[
+        int | None,
+        typer.Option(help="Prepared steady-state workload duration in seconds"),
+    ] = None,
+    bit_rate: Annotated[int, typer.Option(help="Target encoder bitrate in bits/sec")] = 4_000_000,
+) -> None:
+    """Run the established comparison set across the fixture catalog."""
+    workload_key = _workload_key(resolution, min_duration_seconds)
+    fixture_keys = _fixture_selection(fixture or [])
+    fixture_label = "all-fixtures" if not fixture else "-".join(fixture_keys)
+    recorder = RunRecorder("compare-all", fixture_label, workload_key, "catalog")
+    recorder.note(f"Running catalog comparisons at {workload_key}")
+
+    environment = collect_environment_report()
+    recorder.write_json("environment.json", environment.to_dict())
+    videotoolbox_available = "videotoolbox" in environment.pyav_hwdevices
+
+    suite_results: list[dict[str, Any]] = []
+    for fixture_key in fixture_keys:
+        asset = get_fixture_asset(fixture_key)
+        codec_hint = asset.codec_hint
+        recorder.emit(
+            "fixture_started",
+            {
+                "fixture_key": fixture_key,
+                "codec_hint": codec_hint,
+            },
+        )
+
+        if codec_hint == "h264":
+            decode_hwaccel = "videotoolbox"
+            baseline_codec = "libx264"
+            candidate_codec = "h264_videotoolbox"
+        elif codec_hint == "hevc":
+            decode_hwaccel = "videotoolbox"
+            baseline_codec = "libx265"
+            candidate_codec = "hevc_videotoolbox"
+        else:
+            suite_results.append(
+                {
+                    "fixture_key": fixture_key,
+                    "codec_hint": codec_hint,
+                    "status": "skipped",
+                    "reason": f"no comparison plan for codec {codec_hint!r}",
+                }
+            )
+            recorder.emit(
+                "fixture_skipped",
+                {
+                    "fixture_key": fixture_key,
+                    "reason": f"no comparison plan for codec {codec_hint!r}",
+                },
+            )
+            continue
+
+        fixture_result: dict[str, Any] = {
+            "fixture_key": fixture_key,
+            "codec_hint": codec_hint,
+            "resolution_key": workload_key,
+            "comparisons": [],
+        }
+
+        if videotoolbox_available:
+            try:
+                decode_comparison = compare_decode(
+                    fixture_key,
+                    resolution_key=resolution,
+                    min_duration_seconds=min_duration_seconds,
+                    candidate_hwaccel_device=decode_hwaccel,
+                    repeats=repeats,
+                    warmups=warmups,
+                    recorder=recorder,
+                )
+                fixture_result["comparisons"].append(
+                    {
+                        "kind": "decode",
+                        "status": "completed",
+                        "comparison": decode_comparison.to_dict(),
+                    }
+                )
+            except Exception as exc:
+                fixture_result["comparisons"].append(
+                    {
+                        "kind": "decode",
+                        "status": "failed",
+                        "error": str(exc),
+                    }
+                )
+        else:
+            fixture_result["comparisons"].append(
+                {
+                    "kind": "decode",
+                    "status": "skipped",
+                    "reason": "videotoolbox is not available in this environment",
+                }
+            )
+
+        if _encoder_available(baseline_codec) and _encoder_available(candidate_codec):
+            try:
+                encode_comparison = compare_encode(
+                    fixture_key,
+                    resolution_key=resolution,
+                    min_duration_seconds=min_duration_seconds,
+                    baseline_codec_name=baseline_codec,
+                    candidate_codec_name=candidate_codec,
+                    repeats=repeats,
+                    warmups=warmups,
+                    bit_rate=bit_rate,
+                    recorder=recorder,
+                )
+                fixture_result["comparisons"].append(
+                    {
+                        "kind": "encode",
+                        "status": "completed",
+                        "comparison": encode_comparison.to_dict(),
+                    }
+                )
+            except Exception as exc:
+                fixture_result["comparisons"].append(
+                    {
+                        "kind": "encode",
+                        "status": "failed",
+                        "error": str(exc),
+                    }
+                )
+        else:
+            fixture_result["comparisons"].append(
+                {
+                    "kind": "encode",
+                    "status": "skipped",
+                    "reason": (
+                        f"required encoders unavailable: {baseline_codec}, {candidate_codec}"
+                    ),
+                }
+            )
+
+        recorder.emit(
+            "fixture_completed",
+            {
+                "fixture_key": fixture_key,
+                "comparison_count": len(fixture_result["comparisons"]),
+            },
+        )
+        suite_results.append(fixture_result)
+
+    payload = {
+        "benchmark": "compare-all",
+        "fixture_keys": fixture_keys,
+        "resolution_key": workload_key,
+        "min_duration_seconds": min_duration_seconds,
+        "repeats": repeats,
+        "warmups": warmups,
+        "bit_rate": bit_rate,
+        "results": suite_results,
+        "run_dir": str(recorder.run_dir),
+        "run_id": recorder.run_id,
+    }
+    recorder.write_json("suite.json", payload)
     _emit_json(payload)
 
 

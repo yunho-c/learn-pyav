@@ -52,3 +52,11 @@ def test_compare_encode_help_mentions_codec_options() -> None:
     assert "--baseline-codec" in result.stdout
     assert "--candidate-codec" in result.stdout
     assert "--min-duration-seconds" in result.stdout
+
+
+def test_compare_all_help_mentions_fixture_filter() -> None:
+    result = runner.invoke(app, ["benchmark", "compare-all", "--help"])
+
+    assert result.exit_code == 0
+    assert "--fixture" in result.stdout
+    assert "--min-duration-seconds" in result.stdout

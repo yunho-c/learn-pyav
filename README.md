@@ -30,6 +30,7 @@ pixi run python -m pyav_hwaccel_autoresearch.cli benchmark encode pexels-night-s
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-decode pexels-night-sky --hwaccel videotoolbox
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-encode pexels-night-sky --baseline-codec libx264 --candidate-codec h264_videotoolbox
 pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-decode pexels-night-sky --hwaccel videotoolbox --min-duration-seconds 30
+pixi run python -m pyav_hwaccel_autoresearch.cli benchmark compare-all --resolution source --min-duration-seconds 30
 ```
 
 The fixture catalog now includes both small PyAV-curated 720p clips and larger native 4K sample
@@ -43,6 +44,10 @@ claims are preserved as one experiment bundle instead of separate ad hoc reports
 Short fixtures can be expanded into steady-state workloads with `--min-duration-seconds`, which
 creates an explicit prepared variant at the requested duration by looping short sources and clipping
 longer ones. This keeps the workload explicit and helps amortize decoder or encoder setup costs.
+
+The repo also includes a [`Justfile`](/Users/yunhocho/GitHub/pyav-hwaccel-autoresearch/Justfile) for
+common workflows such as `just compare-all`, `just compare-720p`, `just compare-1080p`, and
+`just compare-native`.
 
 ## Current scope
 
