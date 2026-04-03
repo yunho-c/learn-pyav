@@ -20,6 +20,9 @@ fixtures:
 resolutions:
     pixi run python -m {{module}} fixtures resolutions
 
+suite-table path format="markdown":
+    pixi run python -m {{module}} report suite-table {{path}} --format {{format}}
+
 lint:
     pixi run lint
 

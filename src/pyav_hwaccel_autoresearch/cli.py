@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import typer
 from av.codec import Codec
@@ -28,6 +28,7 @@ from .paths import (
 )
 from .probes import collect_environment_report
 from .recording import RunRecorder
+from .reporting import ReportFormat, load_suite, render_suite_table
 from .runner import (
     benchmark_decode,
     benchmark_encode,
@@ -45,8 +46,10 @@ benchmark_app = typer.Typer(
     help="Run an encode or decode benchmark against a real fixture",
     no_args_is_help=True,
 )
+report_app = typer.Typer(help="Render saved benchmark reports", no_args_is_help=True)
 app.add_typer(fixtures_app, name="fixtures")
 app.add_typer(benchmark_app, name="benchmark")
+app.add_typer(report_app, name="report")
 
 
 def _emit_json(payload: Mapping[str, Any]) -> None:
@@ -508,6 +511,24 @@ def benchmark_compare_all_command(
     }
     recorder.write_json("suite.json", payload)
     _emit_json(payload)
+
+
+@report_app.command("suite-table")
+def report_suite_table_command(
+    suite_path: Annotated[
+        Path,
+        typer.Argument(help="Path to a saved suite.json file"),
+    ],
+    format: Annotated[
+        str,
+        typer.Option(help="Output format: markdown, json, or tsv"),
+    ] = "markdown",
+) -> None:
+    """Render a flat aggregate table from a saved suite.json."""
+    if format not in {"markdown", "json", "tsv"}:
+        raise typer.BadParameter("format must be one of: markdown, json, tsv")
+    suite = load_suite(suite_path)
+    typer.echo(render_suite_table(suite, format=cast(ReportFormat, format)))
 
 
 def main() -> None:

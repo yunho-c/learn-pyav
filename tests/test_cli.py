@@ -60,3 +60,10 @@ def test_compare_all_help_mentions_fixture_filter() -> None:
     assert result.exit_code == 0
     assert "--fixture" in result.stdout
     assert "--min-duration-seconds" in result.stdout
+
+
+def test_report_suite_table_help_mentions_format() -> None:
+    result = runner.invoke(app, ["report", "suite-table", "--help"])
+
+    assert result.exit_code == 0
+    assert "--format" in result.stdout
