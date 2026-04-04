@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from pyav_hwaccel_autoresearch.reporting import (
     default_suite_graph_path,
+    latest_suite_path,
     render_suite_table,
+    resolve_suite_path,
     suite_rows,
     write_suite_graph,
 )
@@ -71,6 +75,32 @@ def test_default_suite_graph_path_uses_neighbor_file() -> None:
     suite_path = default_suite_graph_path.__globals__["Path"]("results/runs/run-1/suite.json")
 
     assert default_suite_graph_path(suite_path).name == "suite-graph.png"
+
+
+def test_resolve_suite_path_returns_explicit_path() -> None:
+    suite_path = Path("results/runs/run-1/suite.json")
+
+    assert resolve_suite_path(suite_path) == suite_path
+
+
+def test_latest_suite_path_finds_newest(monkeypatch, tmp_path) -> None:
+    run_a = tmp_path / "run-a"
+    run_b = tmp_path / "run-b"
+    run_a.mkdir()
+    run_b.mkdir()
+    older = run_a / "suite.json"
+    newer = run_b / "suite.json"
+    older.write_text("{}")
+    newer.write_text("{}")
+    newer.touch()
+
+    monkeypatch.setattr(
+        "pyav_hwaccel_autoresearch.reporting.run_results_dir",
+        lambda: tmp_path,
+    )
+
+    assert latest_suite_path() == newer
+    assert resolve_suite_path(Path("latest")) == newer
 
 
 def test_write_suite_graph_creates_image(tmp_path) -> None:

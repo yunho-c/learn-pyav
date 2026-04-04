@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 import matplotlib
 
+from .paths import run_results_dir
+
 matplotlib.use("Agg")
 
 ReportFormat = Literal["markdown", "json", "tsv"]
@@ -13,6 +15,23 @@ ReportFormat = Literal["markdown", "json", "tsv"]
 
 def load_suite(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
+
+
+def latest_suite_path() -> Path:
+    candidates = sorted(
+        run_results_dir().glob("*/suite.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        raise FileNotFoundError("No suite.json found under results/runs")
+    return candidates[0]
+
+
+def resolve_suite_path(path: Path) -> Path:
+    if path == Path("latest"):
+        return latest_suite_path()
+    return path
 
 
 def suite_rows(suite: dict[str, Any]) -> list[dict[str, Any]]:

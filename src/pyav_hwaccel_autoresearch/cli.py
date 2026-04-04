@@ -33,6 +33,7 @@ from .reporting import (
     default_suite_graph_path,
     load_suite,
     render_suite_table,
+    resolve_suite_path,
     write_suite_graph,
 )
 from .runner import (
@@ -533,6 +534,7 @@ def report_suite_table_command(
     """Render a flat aggregate table from a saved suite.json."""
     if format not in {"markdown", "json", "tsv"}:
         raise typer.BadParameter("format must be one of: markdown, json, tsv")
+    suite_path = resolve_suite_path(suite_path)
     suite = load_suite(suite_path)
     typer.echo(render_suite_table(suite, format=cast(ReportFormat, format)))
 
@@ -557,6 +559,7 @@ def report_suite_graph_command(
     ] = 160,
 ) -> None:
     """Render a software-vs-hardware FPS graph from a saved suite.json."""
+    suite_path = resolve_suite_path(suite_path)
     suite = load_suite(suite_path)
     destination = output or default_suite_graph_path(suite_path)
     path = write_suite_graph(suite, destination, title=title, dpi=dpi)

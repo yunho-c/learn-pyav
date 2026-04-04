@@ -80,3 +80,70 @@ def test_report_suite_graph_help_mentions_output() -> None:
     assert result.exit_code == 0
     assert "--output" in result.stdout
     assert "--dpi" in result.stdout
+
+
+def test_report_suite_table_latest_uses_resolved_path(monkeypatch, tmp_path) -> None:
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text('{"benchmark":"compare-all","results":[]}')
+
+    monkeypatch.setattr(
+        "pyav_hwaccel_autoresearch.cli.resolve_suite_path",
+        lambda _: suite_path,
+    )
+
+    result = runner.invoke(app, ["report", "suite-table", "latest"])
+
+    assert result.exit_code == 0
+    assert "Fixture" in result.stdout
+
+
+def test_report_suite_graph_latest_uses_resolved_path(monkeypatch, tmp_path) -> None:
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(
+        json.dumps(
+            {
+                "benchmark": "compare-all",
+                "results": [
+                    {
+                        "fixture_key": "fixture-a",
+                        "codec_hint": "h264",
+                        "resolution_key": "source-30s",
+                        "comparisons": [
+                            {
+                                "kind": "decode",
+                                "status": "completed",
+                                "comparison": {
+                                    "winner": "baseline",
+                                    "candidate_speedup": 0.75,
+                                    "baseline": {
+                                        "case": {"name": "baseline-case"},
+                                        "median_frames_per_second": 100.0,
+                                    },
+                                    "candidate": {
+                                        "case": {"name": "candidate-case"},
+                                        "median_frames_per_second": 75.0,
+                                    },
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
+    output_path = tmp_path / "graph.png"
+
+    monkeypatch.setattr(
+        "pyav_hwaccel_autoresearch.cli.resolve_suite_path",
+        lambda _: suite_path,
+    )
+
+    result = runner.invoke(
+        app,
+        ["report", "suite-graph", "latest", "--output", str(output_path)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["suite_path"] == str(suite_path)
+    assert payload["graph_path"] == str(output_path)

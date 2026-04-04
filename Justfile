@@ -24,7 +24,7 @@ suite-table path format="markdown":
     pixi run python -m {{module}} report suite-table {{path}} --format {{format}}
 
 suite-graph path output="" dpi="160":
-    pixi run python -m {{module}} report suite-graph {{path}} {{if output != "" { "--output " + output } else { "" }}} --dpi {{dpi}}
+    output_path="{{output}}"; if [[ -n "$output_path" ]]; then pixi run python -m {{module}} report suite-graph {{path}} --output "$output_path" --dpi {{dpi}}; else pixi run python -m {{module}} report suite-graph {{path}} --dpi {{dpi}}; fi
 
 lint:
     pixi run lint
@@ -68,3 +68,8 @@ compare-all:
     just compare-720p
     just compare-1080p
     just compare-native
+
+compare-all-fast:
+    just compare-catalog 720p 10 1 0
+    just compare-catalog 1080p 10 1 0
+    just compare-catalog source 10 1 0
